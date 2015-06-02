@@ -135,6 +135,14 @@ int main(int argc, char *argv[])
   libfreenect2::Registration* registration = new libfreenect2::Registration(dev->getIrCameraParams(), dev->getColorCameraParams());
   unsigned char* registered = NULL;
 
+  libfreenect2::Freenect2Device::IrCameraParams ir_params = dev->getIrCameraParams();
+  std::cout << "IR Camera Parameters:" << std::endl;
+  std::cout << ir_params << std::endl;
+
+  libfreenect2::Freenect2Device::ColorCameraParams color_params = dev->getColorCameraParams();
+  std::cout << "Color Camera Parameters:" << std::endl;
+  std::cout << color_params << std::endl;
+
   while(!protonect_shutdown)
   {
     listener.waitForNewFrame(frames);

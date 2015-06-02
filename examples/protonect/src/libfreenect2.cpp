@@ -787,4 +787,47 @@ Freenect2Device *Freenect2::openDefaultDevice(const PacketPipeline *pipeline)
   return openDevice(0, pipeline);
 }
 
+std::ostream& operator<<(std::ostream& os, const Freenect2Device::ColorCameraParams &params) {
+  os << "fx " << params.fx << std::endl;
+  os << "fy " << params.fy << std::endl;
+  os << "cx " << params.cx << std::endl;
+  os << "cy " << params.cy << std::endl;
+  os << "shift_d " << params.shift_d << std::endl;
+  os << "shift_m " << params.shift_m << std::endl;
+  os << "mx_x3y0 " << params.mx_x3y0 << std::endl;
+  os << "mx_x0y3 " << params.mx_x0y3 << std::endl;
+  os << "mx_x2y1 " << params.mx_x2y1 << std::endl;
+  os << "mx_x1y2 " << params.mx_x1y2 << std::endl;
+  os << "mx_x2y0 " << params.mx_x2y0 << std::endl;
+  os << "mx_x0y2 " << params.mx_x0y2 << std::endl;
+  os << "mx_x1y1 " << params.mx_x1y1 << std::endl;
+  os << "mx_x1y0 " << params.mx_x1y0 << std::endl;
+  os << "mx_x0y1 " << params.mx_x0y1 << std::endl;
+  os << "mx_x0y0 " << params.mx_x0y0 << std::endl;
+  os << "my_x3y0 " << params.my_x3y0 << std::endl;
+  os << "my_x0y3 " << params.my_x0y3 << std::endl;
+  os << "my_x2y1 " << params.my_x2y1 << std::endl;
+  os << "my_x1y2 " << params.my_x1y2 << std::endl;
+  os << "my_x2y0 " << params.my_x2y0 << std::endl;
+  os << "my_x0y2 " << params.my_x0y2 << std::endl;
+  os << "my_x1y1 " << params.my_x1y1 << std::endl;
+  os << "my_x1y0 " << params.my_x1y0 << std::endl;
+  os << "my_x0y1 " << params.my_x0y1 << std::endl;
+  os << "my_x0y0 " << params.my_x0y0 << std::endl;
+  return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const Freenect2Device::IrCameraParams &params) {
+  os << "depth_fx " << params.fx << std::endl;
+  os << "depth_fy " << params.fy << std::endl;
+  os << "depth_cx " << params.cx << std::endl;
+  os << "depth_cy " << params.cy << std::endl;
+  os << "depth_k1 " << params.k1 << std::endl;
+  os << "depth_k2 " << params.k2 << std::endl;
+  os << "depth_k3 " << params.k3 << std::endl;
+  os << "depth_p1 " << params.p1 << std::endl;
+  os << "depth_p2 " << params.p2 << std::endl;
+  return os;
+}
+
 } /* namespace libfreenect2 */

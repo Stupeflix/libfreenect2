@@ -27,6 +27,7 @@
 #ifndef LIBFREENECT2_HPP_
 #define LIBFREENECT2_HPP_
 
+#include <iostream>
 #include <libfreenect2/config.h>
 #include <libfreenect2/frame_listener.hpp>
 
@@ -118,6 +119,9 @@ protected:
 private:
   Freenect2Impl *impl_;
 };
+
+std::ostream& operator<<(std::ostream& os, const Freenect2Device::ColorCameraParams &params);
+std::ostream& operator<<(std::ostream& os, const Freenect2Device::IrCameraParams &params);
 
 } /* namespace libfreenect2 */
 #endif /* LIBFREENECT2_HPP_ */
