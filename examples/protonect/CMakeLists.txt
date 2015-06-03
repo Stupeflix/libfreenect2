@@ -177,11 +177,11 @@ ADD_DEFINITIONS(-DRESOURCES_INC)
 ADD_LIBRARY(freenect2 SHARED ${SOURCES})
 TARGET_LINK_LIBRARIES(freenect2 ${LIBRARIES})
   
-ADD_EXECUTABLE(Protonect
-  Protonect.cpp
+ADD_EXECUTABLE(capture
+  capture.cpp
 )
   
-TARGET_LINK_LIBRARIES(Protonect
+TARGET_LINK_LIBRARIES(capture
   freenect2
 )
 
