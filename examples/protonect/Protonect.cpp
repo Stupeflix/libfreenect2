@@ -24,6 +24,10 @@
  * either License.
  */
 
+#include <stdio.h>
+#include <sstream>
+#include <string>
+#include <iomanip>
 
 #include <iostream>
 #include <signal.h>
@@ -35,6 +39,41 @@
 #include <libfreenect2/threading.h>
 #include <libfreenect2/registration.h>
 #include <libfreenect2/packet_pipeline.h>
+
+void save_to_rgb_file(unsigned char* data, size_t dataSize, std::string prefix, std::string name, int counter)
+{
+    std::ostringstream counter_s;
+    counter_s << std::setfill('0') << std::setw(8) << counter;
+
+    std::stringstream ss;
+    ss << prefix << "_" << name << "_" << counter_s.str() << ".raw";
+
+    FILE* file = fopen(ss.str().c_str(), "w");
+    fwrite(data, dataSize, 1, file);
+    fclose(file);
+}
+
+void save_to_depth_file(float* data, size_t dataLength, std::string prefix, std::string name, int counter)
+{
+    std::ostringstream counter_s;
+    counter_s << std::setfill('0') << std::setw(8) << counter;
+
+    std::stringstream ss;
+    ss << prefix << "_" << name << "_" << counter_s.str() << ".raw";
+
+    FILE* file = fopen(ss.str().c_str(), "w");
+    for (size_t i = 0; i < dataLength; i++)
+    {
+      unsigned long v = (unsigned long)(data[i] * ((1<<24) - 1));
+      unsigned char r = (v & 0x0000FF) >> 0;
+      unsigned char g = (v & 0x00FF00) >> 8;
+      unsigned char b = (v & 0xFF0000) >> 16;
+      fwrite(&r, 1, 1, file);
+      fwrite(&g, 1, 1, file);
+      fwrite(&b, 1, 1, file);
+    }
+    fclose(file);
+}
 
 bool protonect_shutdown = false;
 
@@ -143,6 +182,9 @@ int main(int argc, char *argv[])
   std::cout << "Color Camera Parameters:" << std::endl;
   std::cout << color_params << std::endl;
 
+  int counter = 0;
+  std::string prefix = "/tmp/output/data";
+
   while(!protonect_shutdown)
   {
     listener.waitForNewFrame(frames);
@@ -150,13 +192,25 @@ int main(int argc, char *argv[])
     libfreenect2::Frame *ir = frames[libfreenect2::Frame::Ir];
     libfreenect2::Frame *depth = frames[libfreenect2::Frame::Depth];
 
-    cv::imshow("rgb", cv::Mat(rgb->height, rgb->width, CV_8UC3, rgb->data));
-    cv::imshow("ir", cv::Mat(ir->height, ir->width, CV_32FC1, ir->data) / 20000.0f);
+    save_to_rgb_file(rgb->data, rgb->height * rgb->width * 3, prefix, "rgb", counter);
+
+    // cv::Mat ir_mat = cv::Mat(ir->height, ir->width, CV_32FC1, ir->data);
+    // cv::Mat ir_mat2;
+    // ir_mat.convertTo(ir_mat2, CV_32UC1);
+    // save_to_depth_file(ir_mat2.ptr<unsigned char>(), ir->height * ir->width, prefix, "ir", counter);
+
+    cv::Mat depth_mat = cv::Mat(depth->height, depth->width, CV_32FC1, depth->data);
+    cv::Mat normalized_depth_mat = depth_mat.clone() / 4500.0f;
+    save_to_depth_file(normalized_depth_mat.ptr<float>(), depth->height * depth->width, prefix, "depth", counter);
+
+    counter += 1;
+    // cv::imshow("rgb", cv::Mat(rgb->height, rgb->width, CV_8UC3, rgb->data));
+    // cv::imshow("ir", cv::Mat(ir->height, ir->width, CV_32FC1, ir->data) / 20000.0f);
     cv::imshow("depth", cv::Mat(depth->height, depth->width, CV_32FC1, depth->data) / 4500.0f);
 
-    if (!registered) registered = new unsigned char[depth->height*depth->width*rgb->bytes_per_pixel];
-    registration->apply(rgb,depth,registered);
-    cv::imshow("registered", cv::Mat(depth->height, depth->width, CV_8UC3, registered));
+    // if (!registered) registered = new unsigned char[depth->height*depth->width*rgb->bytes_per_pixel];
+    // registration->apply(rgb,depth,registered);
+    // cv::imshow("registered", cv::Mat(depth->height, depth->width, CV_8UC3, registered));
 
     int key = cv::waitKey(1);
     protonect_shutdown = protonect_shutdown || (key > 0 && ((key & 0xFF) == 27)); // shutdown on escape
