@@ -185,6 +185,14 @@ TARGET_LINK_LIBRARIES(capture
   freenect2
 )
 
+ADD_EXECUTABLE(blob
+  blob.cpp
+)
+  
+TARGET_LINK_LIBRARIES(blob
+  freenect2
+)
+
 CONFIGURE_FILE(freenect2.cmake.in "${PROJECT_BINARY_DIR}/freenect2Config.cmake" @ONLY)
 
 INSTALL(TARGETS freenect2 DESTINATION lib)

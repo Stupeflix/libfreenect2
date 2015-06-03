@@ -40,41 +40,6 @@
 #include <libfreenect2/registration.h>
 #include <libfreenect2/packet_pipeline.h>
 
-void save_to_rgb_file(unsigned char* data, size_t dataSize, std::string prefix, std::string name, int counter)
-{
-    std::ostringstream counter_s;
-    counter_s << std::setfill('0') << std::setw(8) << counter;
-
-    std::stringstream ss;
-    ss << prefix << "_" << name << "_" << counter_s.str() << ".raw";
-
-    FILE* file = fopen(ss.str().c_str(), "w");
-    fwrite(data, dataSize, 1, file);
-    fclose(file);
-}
-
-void save_to_depth_file(float* data, size_t dataLength, std::string prefix, std::string name, int counter)
-{
-    std::ostringstream counter_s;
-    counter_s << std::setfill('0') << std::setw(8) << counter;
-
-    std::stringstream ss;
-    ss << prefix << "_" << name << "_" << counter_s.str() << ".raw";
-
-    FILE* file = fopen(ss.str().c_str(), "w");
-    for (size_t i = 0; i < dataLength; i++)
-    {
-      unsigned long v = (unsigned long)(data[i] * ((1<<24) - 1));
-      unsigned char r = (v & 0x0000FF) >> 0;
-      unsigned char g = (v & 0x00FF00) >> 8;
-      unsigned char b = (v & 0xFF0000) >> 16;
-      fwrite(&r, 1, 1, file);
-      fwrite(&g, 1, 1, file);
-      fwrite(&b, 1, 1, file);
-    }
-    fclose(file);
-}
-
 bool protonect_shutdown = false;
 
 void sigint_handler(int s)
@@ -82,10 +47,80 @@ void sigint_handler(int s)
   protonect_shutdown = true;
 }
 
+float blur_depth(float* values,
+                 int width,
+                 int height,
+                 int blur_x,
+                 int blur_y,
+                 int radius)
+{
+    int num_samples = 0;
+    float acc = 0;
+
+    for (int y = blur_y - radius; y <= blur_y + radius; y++) {
+        if ((y > 0) && (y < height)) {
+            for (int x = blur_x - radius; x <= blur_x + radius; x++) {
+                if ((x > 0) && (x < width)) {
+                    float depth = values[(y * width) + x];
+                    if (depth) {
+                        acc += depth;
+                        num_samples++;
+                    }
+                }
+            }
+        }
+    }
+
+    return acc / num_samples;
+}
+
+void update_pixels(libfreenect2::Frame* rgb_frame,
+                   libfreenect2::Frame* depth_frame,
+                   libfreenect2::Registration* registration,
+                   float* accumulated_depth_frame,
+                   unsigned char* out)
+{
+    for (size_t y = 0; y < depth_frame->height; y++) {
+        for (size_t x = 0; x < depth_frame->width; x++) {
+            size_t depth_index = y * depth_frame->width + x;
+
+            //float depth = ((float*)depth_frame->data)[depth_index];
+            float depth = blur_depth((float*)depth_frame->data, depth_frame->width, depth_frame->height, x, y, 2);
+            float accumulated_depth = accumulated_depth_frame[depth_index];
+
+            if (depth && (depth < accumulated_depth - 50)) {
+                float rgb_x, rgb_y;
+                registration->apply(x, y, depth, rgb_x, rgb_y);
+                size_t rgb_offset = (round(rgb_x) + round(rgb_y) * rgb_frame->width) * rgb_frame->bytes_per_pixel;
+                size_t out_offset = depth_index * 3;
+
+                if ((rgb_offset >= 0) && (rgb_offset < rgb_frame->width * rgb_frame->height * rgb_frame->bytes_per_pixel)) {
+                    out[out_offset + 0] = rgb_frame->data[rgb_offset + 0];
+                    out[out_offset + 1] = rgb_frame->data[rgb_offset + 1];
+                    out[out_offset + 2] = rgb_frame->data[rgb_offset + 2];
+                } else {
+                    out[out_offset + 0] = 0;
+                    out[out_offset + 1] = 0;
+                    out[out_offset + 2] = 0;
+                }
+
+                accumulated_depth_frame[depth_index] = depth;
+            }
+        }
+    }
+}
+
+float fill_float_buffer(float* buf, size_t size, float value)
+{
+    for (size_t i = 0; i < size; i++) {
+        buf[i] = 10000.0;
+    }
+}
+
 int main(int argc, char *argv[])
 {
   std::string program_path(argv[0]);
-  size_t executable_name_idx = program_path.rfind("capture");
+  size_t executable_name_idx = program_path.rfind("blob");
 
   std::string binpath = "/";
 
@@ -182,10 +217,14 @@ int main(int argc, char *argv[])
   std::cout << "Color Camera Parameters:" << std::endl;
   std::cout << color_params << std::endl;
 
-  int counter = 0;
   std::string output_dir = "/tmp/output";
   std::string prefix = output_dir + "/data";
   mkdir(output_dir.c_str(), 0755);
+
+  float* accumulated_depth = NULL;
+  unsigned char* image = NULL;
+  size_t frame = 0;
+  size_t num_depth_pixels;
 
   while(!protonect_shutdown)
   {
@@ -194,31 +233,27 @@ int main(int argc, char *argv[])
     libfreenect2::Frame *ir = frames[libfreenect2::Frame::Ir];
     libfreenect2::Frame *depth = frames[libfreenect2::Frame::Depth];
 
-    save_to_rgb_file(rgb->data, rgb->height * rgb->width * 3, prefix, "rgb", counter);
+    // Initialize depth buffers and copy kinect depth to the current read
+    // buffer
+    if (!accumulated_depth) {
+        num_depth_pixels = depth->width * depth->height;
+        accumulated_depth = new float[num_depth_pixels];
+        image = new unsigned char[num_depth_pixels * 3];
+        memset(image, 0, num_depth_pixels * 3);
+    }
+    if ((frame % (60 * 5)) == 0) {
+        fill_float_buffer(accumulated_depth, num_depth_pixels, 4500);
+    }
+    update_pixels(rgb, depth, registration, accumulated_depth, image);
 
-    // cv::Mat ir_mat = cv::Mat(ir->height, ir->width, CV_32FC1, ir->data);
-    // cv::Mat ir_mat2;
-    // ir_mat.convertTo(ir_mat2, CV_32UC1);
-    // save_to_depth_file(ir_mat2.ptr<unsigned char>(), ir->height * ir->width, prefix, "ir", counter);
-
-    cv::Mat depth_mat = cv::Mat(depth->height, depth->width, CV_32FC1, depth->data);
-    cv::Mat normalized_depth_mat = depth_mat.clone() / 4500.0f;
-    save_to_depth_file(normalized_depth_mat.ptr<float>(), depth->height * depth->width, prefix, "depth", counter);
-
-    counter += 1;
-    // cv::imshow("rgb", cv::Mat(rgb->height, rgb->width, CV_8UC3, rgb->data));
-    // cv::imshow("ir", cv::Mat(ir->height, ir->width, CV_32FC1, ir->data) / 20000.0f);
+    cv::imshow("blob", cv::Mat(depth->height, depth->width, CV_8UC3, image));
     cv::imshow("depth", cv::Mat(depth->height, depth->width, CV_32FC1, depth->data) / 4500.0f);
-
-    // if (!registered) registered = new unsigned char[depth->height*depth->width*rgb->bytes_per_pixel];
-    // registration->apply(rgb,depth,registered);
-    // cv::imshow("registered", cv::Mat(depth->height, depth->width, CV_8UC3, registered));
 
     int key = cv::waitKey(1);
     protonect_shutdown = protonect_shutdown || (key > 0 && ((key & 0xFF) == 27)); // shutdown on escape
 
     listener.release(frames);
-    //libfreenect2::this_thread::sleep_for(libfreenect2::chrono::milliseconds(100));
+    frame++;
   }
 
   // TODO: restarting ir stream doesn't work!
