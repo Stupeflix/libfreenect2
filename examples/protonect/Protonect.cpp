@@ -28,9 +28,9 @@
 #include <sstream>
 #include <string>
 #include <iomanip>
-
 #include <iostream>
 #include <signal.h>
+#include <sys/stat.h>
 
 #include <opencv2/opencv.hpp>
 
@@ -183,7 +183,9 @@ int main(int argc, char *argv[])
   std::cout << color_params << std::endl;
 
   int counter = 0;
-  std::string prefix = "/tmp/output/data";
+  std::string output_dir = "/tmp/output";
+  std::string prefix = output_dir + "/data";
+  mkdir(output_dir.c_str(), 0755);
 
   while(!protonect_shutdown)
   {
