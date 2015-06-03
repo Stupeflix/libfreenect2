@@ -52,17 +52,19 @@ float blur_depth(float* values,
                  int height,
                  int blur_x,
                  int blur_y,
-                 int radius)
+                 int radius,
+                 float max_delta)
 {
     int num_samples = 0;
     float acc = 0;
+    float center_depth = values[blur_y * width + blur_x];
 
     for (int y = blur_y - radius; y <= blur_y + radius; y++) {
         if ((y > 0) && (y < height)) {
             for (int x = blur_x - radius; x <= blur_x + radius; x++) {
                 if ((x > 0) && (x < width)) {
-                    float depth = values[(y * width) + x];
-                    if (depth) {
+                    float depth = values[y * width + x];
+                    if (depth && (std::abs(depth - center_depth) < max_delta)) {
                         acc += depth;
                         num_samples++;
                     }
@@ -71,7 +73,11 @@ float blur_depth(float* values,
         }
     }
 
-    return acc / num_samples;
+    if (num_samples > 4) {
+        return acc / num_samples;
+    } else {
+        return 4500;
+    }
 }
 
 void update_pixels(libfreenect2::Frame* rgb_frame,
@@ -85,10 +91,10 @@ void update_pixels(libfreenect2::Frame* rgb_frame,
             size_t depth_index = y * depth_frame->width + x;
 
             //float depth = ((float*)depth_frame->data)[depth_index];
-            float depth = blur_depth((float*)depth_frame->data, depth_frame->width, depth_frame->height, x, y, 2);
+            float depth = blur_depth((float*)depth_frame->data, depth_frame->width, depth_frame->height, x, y, 1, 50);
             float accumulated_depth = accumulated_depth_frame[depth_index];
 
-            if (depth && (depth < accumulated_depth - 50)) {
+            if (depth < accumulated_depth) {
                 float rgb_x, rgb_y;
                 registration->apply(x, y, depth, rgb_x, rgb_y);
                 size_t rgb_offset = (round(rgb_x) + round(rgb_y) * rgb_frame->width) * rgb_frame->bytes_per_pixel;
@@ -247,7 +253,7 @@ int main(int argc, char *argv[])
     update_pixels(rgb, depth, registration, accumulated_depth, image);
 
     cv::imshow("blob", cv::Mat(depth->height, depth->width, CV_8UC3, image));
-    cv::imshow("depth", cv::Mat(depth->height, depth->width, CV_32FC1, depth->data) / 4500.0f);
+    //cv::imshow("depth", cv::Mat(depth->height, depth->width, CV_32FC1, depth->data) / 4500.0f);
 
     int key = cv::waitKey(1);
     protonect_shutdown = protonect_shutdown || (key > 0 && ((key & 0xFF) == 27)); // shutdown on escape
